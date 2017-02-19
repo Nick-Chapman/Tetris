@@ -1,6 +1,3 @@
-#TODO...
-# check movement of pieces with my orig handheld game
-# cheat! - control/cycle next piece!
 
 from random import randrange
 from time import sleep
@@ -141,6 +138,11 @@ def tick(state):
             return (grid,nextp,x,y,new_nextp), lines_cleared
         else:
             return 'GameOver', lines_cleared
+
+def cheat(state):
+    grid,piece,x,y,_ = state
+    new_nextp = randomPiece()
+    return (grid,piece,x,y,new_nextp)
 
 def interpretKey(key,piece,x):
     if key == "Left":
@@ -323,6 +325,8 @@ def run():
                     right_repeat_count = 2 * auto_repeat_period
                 elif event.key == key['Rotate']:
                     e = "Rotate"
+                elif event.key == pygame.K_DELETE:
+                    state = cheat(state)
                 elif event.key == key['Pause']:
                     if gameOver:
                         if score > high:
