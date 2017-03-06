@@ -2,13 +2,14 @@
 from random import randrange
 from time import sleep
 import pygame
-import os.path
+import os
 
 height = 25
 width = 10
 cell_size = 35
 
-hs_file = '/tmp/tetris.high'
+hs_file = os.environ['HOME'] + '/.tetris.high'
+
 def read_hs():
     if os.path.isfile(hs_file):
         return int(open(hs_file).read())
@@ -126,7 +127,7 @@ def tick(state):
     grid,piece,x,y,nextp = state
     ok = testPlace(grid,piece,x,y+1)
     if ok: # that we can move the piece one step down
-        return (grid,piece,x,y+1,nextp), []
+        return (grid,piece,x,y+1,nextp), [], False
     else:
         pgrid = placePiece(piece,x,y) # we know we can
         grid = merge (grid,pgrid) # freeze
@@ -135,9 +136,9 @@ def tick(state):
         ok2 = testPlace(grid,nextp,x,y)
         if ok2: # that the new piece fits at the top of the screen
             new_nextp = randomPiece()
-            return (grid,nextp,x,y,new_nextp), lines_cleared
+            return (grid,nextp,x,y,new_nextp), lines_cleared, True
         else:
-            return 'GameOver', lines_cleared
+            return 'GameOver', lines_cleared, True
 
 def cheat(state):
     grid,piece,x,y,_ = state
@@ -199,7 +200,7 @@ def key_name(k):
     else:
         return 'key-'+str(k)
 
-def displayState(key,screen,state,score,high,speed,paused,gameOver):
+def displayState(key,screen,state,cleared,score,high,speed,paused,gameOver):
 
     def fill_cell (x,y,col):
         x,y = x+xoff, y+yoff
@@ -230,10 +231,12 @@ def displayState(key,screen,state,score,high,speed,paused,gameOver):
     message(1,red,'next')
     message(6,red,'speed')
     message(7,white,str(speed))
-    message(9,red,'score')
-    message(10,white,str(score))
-    message(12,red,'high')
-    message(13,white,str(high))
+    message(9,red,'cleared')
+    message(10,white,str(cleared))
+    message(12,red,'score')
+    message(13,white,str(score))
+    message(15,red,'high')
+    message(16,white,str(high))
 
     message_key(height-2.5,'Left')
     message_key(height-2,'Right')
@@ -243,10 +246,10 @@ def displayState(key,screen,state,score,high,speed,paused,gameOver):
     message_key(height,'Keys')
 
     if gameOver:
-        message(16,red,'GAME')
-        message(17,red,'OVER')
+        message(19,red,'GAME')
+        message(20,red,'OVER')
     elif paused:
-        message(16,red,'(paused)')
+        message(19,red,'(paused)')
 
     draw_border()
     for (x,y) in cells_of_state(state):
@@ -279,21 +282,22 @@ max_speed = 20 # reducing max speed has effect of making speed=1 harder!
 auto_repeat_period = 5
 
 def init():
-    speed = 1
     state = state0()
-    elapsed_frames = 0
-    dropping = False
-    paused = True
-    gameOver = False
+    cleared = 0
     score = 0
     high = read_hs()
-    return speed,state,elapsed_frames,dropping,paused,gameOver,score,high
+    speed = 1
+    paused = True
+    gameOver = False
+    elapsed_frames = 0
+    dropping = False
+    return state,cleared,score,high,speed,paused,gameOver,elapsed_frames,dropping
 
 def run():
 
     stop = False
 
-    speed,state,elapsed_frames,dropping,paused,gameOver,score,high = init()
+    state,cleared,score,high,speed,paused,gameOver,elapsed_frames,dropping = init()
 
     left_repeat = False
     right_repeat = False
@@ -331,7 +335,7 @@ def run():
                     if gameOver:
                         if score > high:
                             write_hs(score)
-                        speed,state,elapsed_frames,dropping,paused,gameOver,score,high = init()
+                        state,cleared,score,high,speed,paused,gameOver,elapsed_frames,dropping = init()
                     else:
                         paused = not paused
                 elif event.key == key['Drop']:
@@ -370,11 +374,11 @@ def run():
         def flash_cleared(state,lines):
             s1 = state_with_frozen_piece(state)
             s2 = state_without_lines(s1,lines)
-            displayState(key,screen,s2,score,high,speed,paused,gameOver)
+            displayState(key,screen,s2,cleared,score,high,speed,paused,gameOver)
             clock.tick(5)
-            displayState(key,screen,s1,score,high,speed,paused,gameOver)
+            displayState(key,screen,s1,cleared,score,high,speed,paused,gameOver)
             clock.tick(5)
-            displayState(key,screen,s2,score,high,speed,paused,gameOver)
+            displayState(key,screen,s2,cleared,score,high,speed,paused,gameOver)
             clock.tick(5)
 
         if not paused:       
@@ -386,12 +390,15 @@ def run():
                     score = score + 5
                 else:
                     score = score + 1
-                nextS,lines_cleared = tick(state)
+                nextS,lines_cleared,new_appeared = tick(state)
+                if new_appeared:
+                    dropping = False
                 if lines_cleared != []:
                     n_cleared = len(lines_cleared)
-                    score = score + 100 * n_cleared
+                    cleared = cleared + n_cleared
+                    score = score + 50 * n_cleared
                     flash_cleared(state,lines_cleared)
-                speed = min (max (speed, 1 + score // 1000), 20)
+                speed = min (max (speed, 1 + cleared // 10), 20)
                 if nextS == 'GameOver':
                     gameOver = True
                     paused = True
@@ -399,7 +406,7 @@ def run():
                     state = nextS
 
         #print("Display: " + str(elapsed_frames))
-        displayState(key,screen,state,score,high,speed,paused,gameOver)
+        displayState(key,screen,state,cleared,score,high,speed,paused,gameOver)
         clock.tick(fps)
 
 
